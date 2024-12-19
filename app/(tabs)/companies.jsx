@@ -18,7 +18,7 @@ import { auth } from './../configs/FirebaseConfig';
 import { useNavigation } from '@react-navigation/native';
 
 const dummyCompanies = [
-  { id: '1', name: 'Hyund', image: require('../../assets/images/hyundai.png') },
+  { id: '1', name: 'Hyundai', image: require('../../assets/images/hyundai.png') },
   { id: '2', name: 'Maruti', image: require('../../assets/images/maruti.png') },
   { id: '3', name: 'Tata', image: require('../../assets/images/Tata.png') },
   { id: '4', name: 'Kia', image: require('../../assets/images/kia.png') },

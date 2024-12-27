@@ -10,25 +10,13 @@ import {
   TextInput,
   Button,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons'; // Importing icons for edit and delete
-import * as ImagePicker from 'expo-image-picker'; // Import the image picker library
-import AsyncStorage from '@react-native-async-storage/async-storage'; // AsyncStorage for local storage
-import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from './../configs/FirebaseConfig';
-import { useNavigation } from '@react-navigation/native';
-
-const dummyCompanies = [
-  { id: '1', name: 'Hyundai', image: require('../../assets/images/hyundai.png') },
-  { id: '2', name: 'Maruti', image: require('../../assets/images/maruti.png') },
-  { id: '3', name: 'Tata', image: require('../../assets/images/Tata.png') },
-  { id: '4', name: 'Kia', image: require('../../assets/images/kia.png') },
-  { id: '5', name: 'BMW', image: require('../../assets/images/bmw.png') },
-  { id: '6', name: 'Mercedes', image: require('../../assets/images/mercedes.png') },
-  { id: '7', name: 'Ford', image: require('../../assets/images/ford.png') },
-  { id: '8', name: 'Honda', image: require('../../assets/images/honda.png') },
-  { id: '9', name: 'Audi', image: require('../../assets/images/audi.png') },
-  { id: '10', name: 'Volkswagen', image: require('../../assets/images/volkswagen.png') },
-];
+import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import axios from 'axios';
+import { auth } from './../configs/FirebaseConfig'; // Firebase config
+import { useRouter } from 'expo-router';
 
 export default function Companies() {
   const [companies, setCompanies] = useState([]);
@@ -37,27 +25,27 @@ export default function Companies() {
   const [newCompanyImage, setNewCompanyImage] = useState(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null); // Track current user
-  const navigation = useNavigation(); // Hook for navigation
+  const [currentUser, setCurrentUser] = useState(null);
+  const router = useRouter();  // Use useRouter instead of useNavigation
 
   useEffect(() => {
     loadCompaniesFromStorage();
     loadCurrentUser();
   }, []);
+
   useEffect(() => {
-    const auth = getAuth(); // Initialize Firebase auth
+    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        saveCurrentUser(user); // Save user to AsyncStorage if signed in
+        saveCurrentUser(user);
       } else {
         AsyncStorage.removeItem('currentUser');
-        navigation.navigate('auth/sign-in'); // Navigate to the login screen if no user is signed in
+        router.push('/auth/sign-in');  // Navigate using useRouter
       }
     });
 
-    return () => unsubscribe(); // Clean up the listener on unmount
+    return () => unsubscribe();
   }, []);
-
 
   const saveCompaniesToStorage = async (data) => {
     try {
@@ -71,14 +59,19 @@ export default function Companies() {
     try {
       const storedUser = await AsyncStorage.getItem('currentUser');
       if (storedUser !== null) {
-        setCurrentUser(JSON.parse(storedUser)); // Set user in state if found
+        const user = JSON.parse(storedUser);
+        setCurrentUser(user);
       } else {
         console.log('No current user found');
-        navigation.navigate('auth/sign-in');
+        router.push('/auth/sign-in');  // Navigate using useRouter
       }
     } catch (error) {
       console.error('Error loading current user:', error);
     }
+  };
+
+  const getEmailPrefix = (email) => {
+    return email ? email.split('@')[0] : 'Guest';
   };
 
   const loadCompaniesFromStorage = async () => {
@@ -86,13 +79,12 @@ export default function Companies() {
       const storedCompanies = await AsyncStorage.getItem('companies');
       if (storedCompanies !== null) {
         setCompanies(JSON.parse(storedCompanies));
-      } else {
-        setCompanies(dummyCompanies);
       }
     } catch (error) {
       console.error('Error loading companies:', error);
     }
   };
+
   const saveCurrentUser = async (user) => {
     try {
       await AsyncStorage.setItem('currentUser', JSON.stringify(user));
@@ -110,44 +102,82 @@ export default function Companies() {
     });
 
     if (!result.canceled) {
-      setNewCompanyImage(result.assets[0].uri);
+      setNewCompanyImage(result.assets[0]);
     } else {
       console.log('Image picking canceled.');
     }
   };
 
-  const addCompany = () => {
+  const uploadImageToCloudinary = async (image) => {
+    const data = new FormData();
+    
+    // Get MIME type from the file extension
+    const mimeType = image.type || 'image/jpeg';  // Default to 'image/jpeg' if mime type is not provided
+
+    // Create the file data for Cloudinary upload
+    data.append('file', {
+      uri: image.uri,
+      type: mimeType,  // Use the correct mime type
+      name: image.uri.split('/').pop(),  // Use the file name from URI
+    });
+    data.append('upload_preset', 'sparegold'); // Set your Cloudinary upload preset here
+
+    try {
+      const response = await axios.post(
+        'https://api.cloudinary.com/v1_1/drevlezgz/image/upload',
+        data
+      );
+      return response.data.secure_url; // This will be the URL of the uploaded image
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      return null;
+    }
+  };
+
+  const addCompany = async () => {
     if (newCompanyName && newCompanyImage) {
-      const newCompany = {
-        id: (companies.length + 1).toString(),
-        name: newCompanyName,
-        image: { uri: newCompanyImage },
-      };
-      const updatedCompanies = [...companies, newCompany];
-      setCompanies(updatedCompanies);
-      saveCompaniesToStorage(updatedCompanies);
-      setNewCompanyName('');
-      setNewCompanyImage(null);
-      setModalVisible(false);
+      const imageUrl = await uploadImageToCloudinary(newCompanyImage);
+
+      if (imageUrl) {
+        const newCompany = {
+          id: (companies.length + 1).toString(),
+          name: newCompanyName,
+          image: { uri: imageUrl },
+        };
+        const updatedCompanies = [...companies, newCompany];
+        setCompanies(updatedCompanies);
+        saveCompaniesToStorage(updatedCompanies);
+        setNewCompanyName('');
+        setNewCompanyImage(null);
+        setModalVisible(false);
+      } else {
+        console.log('Failed to upload image');
+      }
     } else {
       console.log('Please provide both company name and image.');
     }
   };
 
-  const updateCompany = () => {
+  const updateCompany = async () => {
     if (newCompanyName && newCompanyImage && selectedCompanyId !== null) {
-      const updatedCompanies = companies.map((company) =>
-        company.id === selectedCompanyId
-          ? { ...company, name: newCompanyName, image: { uri: newCompanyImage } }
-          : company
-      );
-      setCompanies(updatedCompanies);
-      saveCompaniesToStorage(updatedCompanies);
-      setNewCompanyName('');
-      setNewCompanyImage(null);
-      setIsEditing(false);
-      setSelectedCompanyId(null);
-      setModalVisible(false);
+      const imageUrl = await uploadImageToCloudinary(newCompanyImage);
+
+      if (imageUrl) {
+        const updatedCompanies = companies.map((company) =>
+          company.id === selectedCompanyId
+            ? { ...company, name: newCompanyName, image: { uri: imageUrl } }
+            : company
+        );
+        setCompanies(updatedCompanies);
+        saveCompaniesToStorage(updatedCompanies);
+        setNewCompanyName('');
+        setNewCompanyImage(null);
+        setIsEditing(false);
+        setSelectedCompanyId(null);
+        setModalVisible(false);
+      } else {
+        console.log('Failed to upload image');
+      }
     }
   };
 
@@ -158,78 +188,35 @@ export default function Companies() {
     setSelectedCompanyId(null);
   };
 
-  const gridData =
-    companies.length % 2 === 0
-      ? companies
-      : [...companies, { id: 'placeholder', name: '', image: null }];
+  const handleUserProfileClick = () => {
+    router.push('/profile');  // Navigate using useRouter
+  };
 
-      const handleUserProfileClick = () => {
-        // Navigate to profile page
-        navigation.navigate('/profile');
-      };
-    
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Automotive Companies</Text>
-  {/* Display the current user's info */}
+
       {currentUser && (
         <TouchableOpacity style={styles.userInfoContainer} onPress={handleUserProfileClick}>
           <Image
-            source={{ uri: currentUser.photoURL || 'https://www.w3schools.com/w3images/avatar2.png' }} // Default image if no photo
+            source={{ uri: currentUser.photoURL || 'https://www.w3schools.com/w3images/avatar2.png' }}
             style={styles.userImage}
           />
-          <Text style={styles.userEmail}>{currentUser.email}</Text>
+          <Text style={styles.userName}>{currentUser.displayName}</Text>
+          <Text style={styles.userEmail}>{getEmailPrefix(currentUser.email)}</Text>
         </TouchableOpacity>
       )}
 
       <FlatList
-        data={gridData}
+        data={companies}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        renderItem={({ item }) =>
-          item.name ? (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => {
-                if (selectedCompanyId === item.id) {
-                  setSelectedCompanyId(null);
-                  setIsEditing(false);
-                } else {
-                  setSelectedCompanyId(item.id);
-                  setNewCompanyName(item.name);
-                  setNewCompanyImage(item.image.uri);
-                  setIsEditing(false);
-                }
-              }}
-            >
-              <Image source={item.image} style={styles.image} resizeMode="contain" />
-              <Text style={styles.companyName}>{item.name}</Text>
-
-              {selectedCompanyId === item.id && !isEditing && (
-                <View style={styles.iconContainer}>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => {
-                      setIsEditing(true);
-                      setModalVisible(true);
-                    }}
-                  >
-                    <MaterialIcons name="edit" size={24} color="blue" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => deleteCompany(item.id)}
-                  >
-                    <MaterialIcons name="delete" size={24} color="red" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.card, { backgroundColor: 'transparent', elevation: 0 }]} />
-          )
-        }
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.card}>
+            <Image source={{ uri: item.image.uri }} style={styles.image} resizeMode="contain" />
+            <Text style={styles.companyName}>{item.name}</Text>
+          </TouchableOpacity>
+        )}
       />
 
       <TouchableOpacity
@@ -266,7 +253,7 @@ export default function Companies() {
           </TouchableOpacity>
 
           {newCompanyImage && (
-            <Image source={{ uri: newCompanyImage }} style={styles.previewImage} />
+            <Image source={{ uri: newCompanyImage.uri }} style={styles.previewImage} />
           )}
 
           <Button

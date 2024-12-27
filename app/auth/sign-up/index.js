@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './../../configs/FirebaseConfig';
 import { MaterialIcons } from '@expo/vector-icons'; // Importing MaterialIcons for the eye icon
 
@@ -34,15 +34,19 @@ export default function SignUp() {
 
     createUserWithEmailAndPassword(auth, email, password)
       .then(() => {
+        // After creating the account, sign the user in automatically
+        return signInWithEmailAndPassword(auth, email, password);
+      })
+      .then(() => {
         setLoading(false);
         setShowSuccess(true);
         animateSuccessMessage();
 
-        // Redirect after a brief delay
+        // Wait for the success message to fade out, then navigate
         setTimeout(() => {
           setShowSuccess(false);
-          router.push('auth/sign-in');
-        }, 3000);
+          router.push('auth/sign-in'); // Redirect to sign-in page after success
+        }, 3000); // Give the success message 3 seconds to show
       })
       .catch((error) => {
         setLoading(false);
@@ -62,7 +66,7 @@ export default function SignUp() {
           duration: 500,
           useNativeDriver: true,
         }).start();
-      }, 2000);
+      }, 2000); // Wait for 2 seconds before fading out
     });
   };
 

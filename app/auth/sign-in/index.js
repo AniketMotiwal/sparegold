@@ -62,7 +62,7 @@ export default function SignIn() {
         setIsLoading(false);
         const user = userCredential.user;
         setCurrentUser(user);
-        Alert.alert('Success', `Welcome back, ${user.email}`);
+        Alert.alert('Success', `Welcome back, ${user.email.split('@')[0]}`); // Show the email prefix
         // router.push('/companies'); // Redirect to companies page
       })
       .catch((error) => {
@@ -85,6 +85,11 @@ export default function SignIn() {
     return () => unsubscribe();
   }, []);
 
+  // Display the email prefix only
+  const getEmailPrefix = (email) => {
+    return email ? email.split('@')[0] : 'Guest';
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -97,7 +102,7 @@ export default function SignIn() {
         {/* Display Current User (if any) */}
         {currentUser && (
           <Text style={styles.currentUser}>
-            Logged in as: {currentUser.email}
+            Logged in as: {getEmailPrefix(currentUser.email)}{/* Display the email prefix */}
           </Text>
         )}
 

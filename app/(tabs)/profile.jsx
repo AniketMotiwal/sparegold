@@ -51,6 +51,10 @@ export default function Profile() {
     }
   };
 
+  const navigateToAccountSettings = () => {
+    router.push('/accountsettings'); // Adjust this path based on where your Account Settings page is
+  };
+
   if (!currentUser) {
     return (
       <View style={styles.container}>
@@ -82,7 +86,7 @@ export default function Profile() {
 
       <View style={styles.settingsContainer}>
         {/* Settings Section */}
-        <TouchableOpacity style={styles.settingButton}>
+        <TouchableOpacity style={styles.settingButton} onPress={navigateToAccountSettings}>
           <Text style={styles.settingButtonText}>Account Settings</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingButton}>

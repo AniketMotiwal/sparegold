@@ -14,19 +14,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const carData = [
-  { id: '1', name: 'Hyundai i20', company: 'Hyundai', year: 2023, image: require('../../assets/images/hyundai1.png'), details: 'Compact and efficient.' },
-  { id: '2', name: 'Maruti Suzuki Swift', company: 'Maruti Suzuki', year: 2023, image: require('../../assets/images/swift.jpg'), details: 'Sporty and reliable.' },
-  { id: '3', name: 'Tata Nexon', company: 'Tata', year: 2023, image: require('../../assets/images/nexon.png'), details: 'Safe and sturdy.' },
-];
+
 
 export default function Models() {
   const [search, setSearch] = useState('');
-  const [models, setModels] = useState([]); // Filtered list of models
-  const [originalModels, setOriginalModels] = useState([]); // Full list of models
+  const [models, setModels] = useState([]);
+  const [originalModels, setOriginalModels] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newModel, setNewModel] = useState({ name: '', company: '', year: '', details: '', image: '' });
   const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState(null);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -51,7 +48,7 @@ export default function Models() {
   const handleSearch = (text) => {
     setSearch(text);
     if (text.trim() === '') {
-      setModels(originalModels); // Reset to the full list when search is cleared
+      setModels(originalModels);
     } else {
       const filteredModels = originalModels.filter((car) =>
         car.name.toLowerCase().includes(text.toLowerCase())
@@ -65,7 +62,19 @@ export default function Models() {
       alert('Please fill all fields.');
       return;
     }
-    const updatedModels = [...originalModels, { ...newModel, id: (originalModels.length + 1).toString() }];
+
+    let updatedModels;
+    if (isEditing) {
+      updatedModels = originalModels.map((model) =>
+        model.id === editId ? { ...model, ...newModel } : model
+      );
+    } else {
+      updatedModels = [
+        ...originalModels,
+        { ...newModel, id: (originalModels.length + 1).toString() },
+      ];
+    }
+
     setOriginalModels(updatedModels);
     setModels(updatedModels);
     saveModelsToLocalStorage(updatedModels);
@@ -78,6 +87,7 @@ export default function Models() {
     const modelToEdit = models.find((model) => model.id === id);
     setNewModel(modelToEdit);
     setIsEditing(true);
+    setEditId(id);
     setModalVisible(true);
   };
 
@@ -120,11 +130,7 @@ export default function Models() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Image
-              source={
-                typeof item.image === 'string'
-                  ? { uri: item.image }
-                  : item.image
-              }
+              source={typeof item.image === 'string' ? { uri: item.image } : item.image}  
               style={styles.image}
             />
             <View style={styles.cardContent}>
